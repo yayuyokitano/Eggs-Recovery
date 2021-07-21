@@ -324,7 +324,7 @@ class DataMigrator {
 		emit({type: "totalLikes", message: this.likes.length});
 		let i = 0;
 		for (let likedSong of this.likes) {
-			emit({type: "likeInProgress", message: likedSong});
+			emit({type: "likeInProgress", message: `「${likedSong.musicName}」${likedSong.artistName}`});
 			const { musicId: likedSongId } = await this.getSongData(likedSong);
 			if (likedSongId !== null) {
 				await this.likeSong(likedSongId);
