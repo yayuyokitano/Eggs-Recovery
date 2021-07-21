@@ -1,7 +1,8 @@
 {
-  "name": "eggs",
+  "name": "eggs-recovery",
+  "author": "yayuyokitano",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "main.js",
   "license": "MIT",
   "dependencies": {
     "log-update": "^4.0.0",
