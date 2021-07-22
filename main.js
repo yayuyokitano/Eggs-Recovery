@@ -466,10 +466,10 @@ Pushはコメントに復旧したいですか？（はい / いいえ）：`));
 		}
 		logUpdate.done();
 		logUpdate("ログを書きます");
-		await fs.writeFile("log.json", JSON.stringify(output));
+		await fs.writeFile("./log.json", JSON.stringify(output));
 		logUpdate.done();
 		logUpdate("バックアップを書きます");
-		await fs.writeFile("backup.json", JSON.stringify(output));
+		await fs.writeFile("./backup.json", JSON.stringify(backup));
 		logUpdate.done();
 		logUpdate("終わりました！");
 		
