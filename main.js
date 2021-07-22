@@ -70,8 +70,9 @@ function emit(data) {
 		
 		case "error":
 			logUpdate.done();
-			logUpdate("ERROR: ", data.message);
+			logUpdate("ERROR:");
 			logUpdate.done();
+			console.log(data.message);
 
 		case "totalLikes":
 			logUpdate("Like");
@@ -362,7 +363,7 @@ class DataMigrator {
 			const songData = await this.getSongData(song);
 			if (songData.artistId !== null) {
 				newPlaylistContent.push(songData);
-				backup.playlists[0].push(songData);
+				backup.playlists[0].songs.push(songData);
 			}
 			emit({type: "currPlaylistSongs", message: i++});
 		}
