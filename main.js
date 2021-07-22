@@ -2,6 +2,7 @@ const fetch = require("node-fetch");
 const readline = require("readline");
 const fs = require("fs").promises;
 const logUpdate = require("log-update");
+const path = require("path");
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -466,10 +467,10 @@ Pushはコメントに復旧したいですか？（はい / いいえ）：`));
 		}
 		logUpdate.done();
 		logUpdate("ログを書きます");
-		await fs.writeFile("./log.json", JSON.stringify(output));
+		await fs.writeFile(path.join(path.dirname(process.execPath), './log.json'), JSON.stringify(output));
 		logUpdate.done();
 		logUpdate("バックアップを書きます");
-		await fs.writeFile("./backup.json", JSON.stringify(backup));
+		await fs.writeFile(path.join(path.dirname(process.execPath), './backup.json'), JSON.stringify(backup));
 		logUpdate.done();
 		logUpdate("終わりました！");
 		
