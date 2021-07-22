@@ -9,6 +9,11 @@ const rl = readline.createInterface({
 })
 
 let output = [];
+let backup = {
+	likes: [],
+	playlists: [],
+	comments: []
+};
 
 let state = {
 	likes: {
@@ -184,6 +189,14 @@ class DataMigrator {
 		return await (await fetch(getEndpointUrl(endpointName, isNew), options)).json()
 	}
 
+	isYoutube(song, isNew) {
+		if (isNew) {
+			return song.youtubeUrl !== null;
+		} else {
+			return song.musicType === 2;
+		}
+	}
+
 	async executePutRequest(endpointName, body) {
 		const stringifiedBody = JSON.stringify(body);
 		let options = {
@@ -295,6 +308,7 @@ class DataMigrator {
 		if (!isLiked) {
 			await this.executePostRequest(`evaluation/evaluation/musics/${id}/like`, {}, true);
 		}
+		backup.likes.push(id);
 	}
 
 	async getSongData(song) {
@@ -304,25 +318,29 @@ class DataMigrator {
 			this.songs[song.artistNameEn] = {};
 		}
 		if (!(this.songs[song.artistNameEn].hasOwnProperty(song.musicName))) {
+			this.songs[song.artistNameEn][song.musicName] = {};
+		}
+		if (!(this.songs[song.artistNameEn][song.musicName].hasOwnProperty(song.musicType.toString()))) {
 			const res = await this.executeGetRequest(`artists/artists/${song.artistNameEn}/musics`, {}, true);
 
 			if (res.code === "E404001") {
-				emit({type: "warning", message: `${song.artistNameEn}：${res.message}`});
-				this.songs[song.artistNameEn][song.musicName] = { musicId: null, artistId: null };
+				emit({type: "warning", message: `${song.artistName}：${res.message}`});
+				this.songs[song.artistNameEn][song.musicName][song.musicType.toString()] = { musicId: null, artistId: null };
 			} else {
-				const [{ musicId, artistData: { artistId }}] = res.data.filter(track => track.musicTitle === song.musicName);
-				this.songs[song.artistNameEn][song.musicName] = { musicId, artistId };
+				const [{ musicId, artistData: { artistId }}] = res.data.filter(track => track.musicTitle === song.musicName)
+					.sort((a,b) => Number(this.isYoutube(b, true) === this.isYoutube(song, false)) - Number(this.isYoutube(a, true) === this.isYoutube(song, false)));
+				this.songs[song.artistNameEn][song.musicName][song.musicType.toString()] = { musicId, artistId };
 			}
 
 			await sleep(2000);
 		}
 
-		return this.songs[song.artistNameEn][song.musicName];
+		return this.songs[song.artistNameEn][song.musicName][song.musicType.toString()];
 	}
 
 	async likeSongs() {
 		emit({type: "totalLikes", message: this.likes.length});
-		let i = 0;
+		let i = 1;
 		for (let likedSong of this.likes) {
 			emit({type: "likeInProgress", message: `「${likedSong.musicName}」${likedSong.artistName}`});
 			const { musicId: likedSongId } = await this.getSongData(likedSong);
@@ -330,22 +348,23 @@ class DataMigrator {
 				await this.likeSong(likedSongId);
 			}
 			await sleep(2000);
-			emit({type: "currLikes", message: ++i});
+			emit({type: "currLikes", message: i++});
 		}
 	}
 
 	async populatePlaylist(oldPlaylistId, newPlaylistId, newPlaylistName) {
-		const oldPlaylistContent = (await this.paginateRequest(`members/playlists/${oldPlaylistId}`)).map(song => ({ artistNameEn: song.artistNameEn, musicName: song.musicName }));
+		const oldPlaylistContent = (await this.paginateRequest(`members/playlists/${oldPlaylistId}`)).map(song => ({ artistName: song.artistName, musicType: song.musicType, artistNameEn: song.artistNameEn, musicName: song.musicName }));
 		let newPlaylistContent = [];
 		emit({type: "totalPlaylistSongs", message: oldPlaylistContent.length});
-		let i = 0;
+		let i = 1;
 		for (let song of oldPlaylistContent) {
-			emit({type: "playlistSongInProgress", message: `「${song.musicName}」${song.artistNameEn}`});
+			emit({type: "playlistSongInProgress", message: `「${song.musicName}」${song.artistName}`});
 			const songData = await this.getSongData(song);
 			if (songData.artistId !== null) {
 				newPlaylistContent.push(songData);
+				backup.playlists[0].push(songData);
 			}
-			emit({type: "currPlaylistSongs", message: ++i});
+			emit({type: "currPlaylistSongs", message: i++});
 		}
 
 		await this.executePutRequest("/playlists/playlists", {
@@ -360,16 +379,20 @@ class DataMigrator {
 
 	async createPlaylists() {
 		emit({type: "totalPlaylists", message: this.playlists.length});
-		let i = 0;
+		let i = 1;
 		for (let playlist of this.playlists) {
 			emit({type: "playlistInProgress", message: playlist.playlistName});
 			const { data: [ { playlistId: newPlaylistId, playlistName: newPlaylistName } ] } = await this.executePostRequest("playlists/playlists", {
 				isPrivate: 1,
 				playlistName: `${this.prefix}${playlist.playlistName}`
 			}, true);
+			backup.playlists.unshift({
+				title: newPlaylistName,
+				songs: []
+			});
 			await this.populatePlaylist(playlist.playlistId, newPlaylistId, newPlaylistName);
 			await sleep(2000);
-			emit({type: "currPlaylists", message: ++i});
+			emit({type: "currPlaylists", message: i++});
 		}
 	}
 
@@ -391,6 +414,10 @@ class DataMigrator {
 			emit({type: "warning", message: "コメントをしませんでした。Pushは空だったか、もう新Eggsにコメントをしました"})
 		}
 		await this.executePostRequest(`evaluation/evaluation/musics/${id}/comments`, {comment: `「${postTime}のPushから復旧した」${comment}`}, true);
+		backup.comments.push({
+			id,
+			comment: `「${postTime}のPushから復旧した」${comment}`
+		});
 	}
 
 	async commentOnSongs() {
@@ -434,11 +461,14 @@ Pushはコメントに復旧したいですか？（はい / いいえ）：`));
 		}
 		
 		if (dataMigrator.isMigratingPushes) {
-			await dataMigrator.pushSongs();
+			await dataMigrator.commentOnSongs();
 		}
 		logUpdate.done();
 		logUpdate("ログを書きます");
 		await fs.writeFile("log.json", JSON.stringify(output));
+		logUpdate.done();
+		logUpdate("バックアップを書きます");
+		await fs.writeFile("backup.json", JSON.stringify(output));
 		logUpdate.done();
 		logUpdate("終わりました！");
 		
